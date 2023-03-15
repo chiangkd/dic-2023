@@ -1,5 +1,11 @@
 *.pptx
 *.zip
-*.dat
 *.docx
 *.pdf
+*.bak
+*.mpf
+*.mti
+*.wlf
+work/
+transcript
+*.pptx#
