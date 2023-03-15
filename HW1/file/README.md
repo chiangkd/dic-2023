@@ -1,0 +1,1 @@
+- [Homework note](https://hackmd.io/@chiangkd/dic2023-hw1-note)
