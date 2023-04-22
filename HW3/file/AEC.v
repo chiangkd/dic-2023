@@ -64,6 +64,7 @@ always @(posedge clk) begin
     else begin
         case(CurrentState)
             DATA_IN: begin
+                valid <= 0;
                 if(ascii_in == 61) begin
                     data_num <= data_index;
                     data_index <= 4'd0;
@@ -75,45 +76,31 @@ always @(posedge clk) begin
                      * 0 ~ 9            => 0011_0000 ~ 0011_1001        (translate to binary code represent decimal, 0000_0000 ~ 0000_1001)
                      * a(10) ~ f(15)    => 0110_0001 ~ 0110_0110        (translate to binary code represent decimal, 0000_1010 ~ 0000_1111)
                      */
-                    data[data_index] <= ();
+                    data[data_index] <= (ascii_in[6:4] ^ 3'b010) ? ((ascii_in[4] & 1'b1) ?  (ascii_in[3:0]): (ascii_in[3:0] + 4'b1001)) : ascii_in[6:0];
                     // data[data_index] <= (ascii_in >= 97 && ascii_in <= 102) ? ascii_in - 40: ascii_in; // pre-offset the offset of ASCII code
                     data_index <= data_index + 1; 
                 end
             end
             POPSINGLE: begin
-                if((data[data_index] >= 40) && (data[data_index] <= 45)) begin
-                    if(stack[stack_index] >= data[data_index]) begin    // pop out
-                        string[string_index] <= stack[stack_index];
-                        string_index = string_index + 1;    // push the popped element to string
-                        stack_index = stack_index - 1;  // pop stack
+                if((data[data_index] >= 40) && (data[data_index] <= 45)) begin  // detect operator
+                    if((stack[stack_index - 1] &1'b1) <= (data[data_index] & 1'b1)) begin    // pop out
+                        string[string_index] <= stack[stack_index - 1]; // push the popped element to string
+                        string_index <= string_index + 1;
+                        // stack_index = stack_index - 1;  // pop stack
+                        stack[stack_index - 1] <= data[data_index];
+                        /* TODO: FIX double pop problem */
                     end
-                    else if(string_index + stack_index < data_num) begin  // push to stack
+                    else if(string_index + stack_index < data_num) begin  // detect number, push to stack
                         stack[stack_index] <= data[data_index]; // push data to stack
                         stack_index <= stack_index + 1; // push stack
                     end
+                    data_index <= data_index + 1;
                 end
                 else if(string_index + stack_index < data_num) begin
                     string[string_index] <= data[data_index];
                     string_index <= string_index + 1;
+                    data_index <= data_index + 1;
                 end
-
-
-                // if((data[data_index] >=48) && (data[data_index] <= 57) || (data[data_index] >= 97) && (data[data_index] <= 102)) begin  // push to string
-                //     string[string_index] <= data[data_index];
-                //     string_index <= string_index + 1;
-                // end
-                // else begin
-                //     if(stack[stack_index] >= data[data_index]) begin    // pop out
-                //         string[string_index] <= stack[stack_index];
-                //         string_index = string_index + 1;    // push the popped element to string
-                //         stack_index = stack_index - 1;  // pop stack
-                //     end
-                //     else if(string_index + stack_index < data_num) begin  // push to stack
-                //         stack[stack_index] <= data[data_index]; // push data to stack
-                //         stack_index <= stack_index + 1; // push stack
-                //     end
-                // end
-                data_index <= data_index + 1;
             end
             POPMULT: begin
                 if(data[data_index] == 41)begin // detect ")"
@@ -142,6 +129,7 @@ always @(posedge clk) begin
                         43: stack[stack_index - 2] <= stack[stack_index - 2] + stack[stack_index - 1];
                         45: stack[stack_index - 2] <= stack[stack_index - 2] - stack[stack_index - 1];
                     endcase
+                    string_index <= string_index + 1;
                     stack_index <= stack_index - 1;
                 end
                 else begin  // detect number, push the number to stack
@@ -156,6 +144,7 @@ always @(posedge clk) begin
                 stack_index <= 0;
                 string_index <= 0;
                 data_index <= 0;
+                data_num <= 0;
             end
             default: valid <= 0;
         endcase
