@@ -54,7 +54,7 @@ always @(posedge clk) begin
                     out_string[i] <= 7'b000_0000;
                     stack[i] <= 7'b000_0000;
                 end
-                if(ascii_in == 61) begin
+                if(!(ascii_in ^ 8'b0011_1101 /* 61 */)) begin
                     data_num <= data_index;
                     data_index <= 4'd0;
                 end
@@ -70,19 +70,20 @@ always @(posedge clk) begin
             end
             POPSINGLE: begin
                 if(out_string_index < data_num ) begin   // no done yet
-                    if(data[data_index] == 40) begin   // if detect "(", force push
+                    if(!(data[data_index] ^ 7'b010_1000 /* 40 */)) begin   // if detect "(", force push
                     stack[stack_index] <= data[data_index];
                     stack_index <= stack_index + 4'b1;
                     data_index <= data_index + 4'b1;
                     end
-                    else if(data[data_index] == 41) begin   // if detect ")", force pop stack
+                    else if(!(data[data_index] ^ 7'b010_1001 /* 41 */)) begin   // if detect ")", force pop stack
                         out_string[out_string_index] <= stack[stack_index - 4'b1];
                         out_string_index <= out_string_index + 4'b1;
                         stack_index <= stack_index - 4'b1;
                         data_index <= data_index + 4'b1;
                     end
-                    else if((data[data_index] >= 42) && (data[data_index] <= 45)) begin  // detect operator
-                        if((stack[stack_index - 4'b1] == 40)) begin    // if stack is "(", force push to stack
+                                    /* 42 (0010_1010) ~ 45 (0010_1101) */
+                    else if(!(data[data_index][5:3] ^ 3'b101) && (data[data_index][2:0] & 3'b110)) begin  // detect operator
+                        if(!(stack[stack_index - 4'b1] ^ 7'b010_1000 /* 40 */)) begin    // if stack is "(", force push to stack
                             stack[stack_index] <= data[data_index];
                             stack_index <= stack_index + 4'b1;
                             data_index <= data_index + 4'b1;
@@ -117,7 +118,7 @@ always @(posedge clk) begin
                 end
             end
             POPMULT: begin
-                if(stack[stack_index - 4'b1] == 40) begin  // discard "("
+                if(!(stack[stack_index - 4'b1] ^ 7'b010_1000 /* 40 */)) begin  // discard "("
                     stack_index <= stack_index - 4'b1;
                     data_num <= data_num - 4'd2;
                 end
@@ -145,8 +146,8 @@ always @(posedge clk) begin
                     out_string_index <= 0;
                     data_index <= 0;
                     data_num <= 0;
-                end
-                else if((out_string[out_string_index] >= 42 && (out_string[out_string_index] <= 45))) begin  // detect operator, pop two number from the stack, calculate it and re-push back to stack
+                end                                             /* 42 (0010_1010) ~ 45 (0010_1101) */
+                else if(/*out_string[out_string_index] >= 42*/ (!(out_string[out_string_index][5:3] ^ 3'b101) && (out_string[out_string_index][2:0] & 3'b110)) /*(out_string[out_string_index] <= 45)*/) begin  // detect operator, pop two number from the stack, calculate it and re-push back to stack
                     case(out_string[out_string_index])
                         42: stack[stack_index - 2] <= stack[stack_index - 2] * stack[stack_index - 1];
                         43: stack[stack_index - 2] <= stack[stack_index - 2] + stack[stack_index - 1];
@@ -170,17 +171,17 @@ end
 always @(*) begin
     case(CurrentState)
         DATA_IN:begin
-            if(ascii_in == 61) NextState = POPSINGLE;
+            if(!(ascii_in ^ 8'b0011_1101 /* 61 */)) NextState = POPSINGLE;
             else NextState = DATA_IN;
         end
         POPSINGLE: begin
             if(out_string_index == data_num && !stack_index) NextState = CALCULATION_AND_OUTPUT;
             else if(out_string_index + stack_index == data_num) NextState = POPMULT;
-            else if(data[data_index] == 41) NextState = POPMULT;    // detect ")"
+            else if(!(data[data_index] ^ 7'b010_1001 /* 41 */)) NextState = POPMULT;    // detect ")"
             else NextState = POPSINGLE;
         end
         POPMULT:begin // check to pop stack 
-            if(stack[stack_index - 1] == 40) NextState = POPSINGLE; // detect ")", back to POPSINGLE
+            if(!(stack[stack_index - 1] ^ 7'b010_1000 /* 40 */)) NextState = POPSINGLE; // detect ")", back to POPSINGLE
             else if(!stack_index) NextState = CALCULATION_AND_OUTPUT;
             else NextState = POPMULT;
         end
