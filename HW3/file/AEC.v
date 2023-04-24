@@ -31,6 +31,9 @@ initial begin
     stack_index = 4'd0;
 end
 
+wire [3:0] simo = stack_index - 4'd1;   // stack index - 1 (for calculation stage)
+wire [3:0] simt = stack_index - 4'd2;   // stack index - 2 (for calculation stage)
+
 /* State register (Sequential) */
 always @(posedge clk) begin
     if(rst) CurrentState <= DATA_IN;
@@ -149,9 +152,9 @@ always @(posedge clk) begin
                 end                                             /* 42 (0010_1010) ~ 45 (0010_1101) */
                 else if(/*out_string[out_string_index] >= 42*/ (!(out_string[out_string_index][5:3] ^ 3'b101) && (out_string[out_string_index][2:0] & 3'b110)) /*(out_string[out_string_index] <= 45)*/) begin  // detect operator, pop two number from the stack, calculate it and re-push back to stack
                     case(out_string[out_string_index])
-                        42: stack[stack_index - 2] <= stack[stack_index - 2] * stack[stack_index - 1];
-                        43: stack[stack_index - 2] <= stack[stack_index - 2] + stack[stack_index - 1];
-                        45: stack[stack_index - 2] <= stack[stack_index - 2] - stack[stack_index - 1];
+                        42: stack[simt] <= stack[simt] * stack[simo];
+                        43: stack[simt] <= stack[simt] + stack[simo];
+                        45: stack[simt] <= stack[simt] - stack[simo];
                     endcase
                     out_string_index <= out_string_index + 4'b1;
                     stack_index <= stack_index - 4'b1;
