@@ -16,10 +16,11 @@ reg [6:0] out_string [0:15];  // output out_string
 reg [6:0] stack [0:15];   // stack
 reg [3:0] out_string_index, stack_index;
 
-localparam DATA_IN = 2'd0;
-localparam POPSINGLE = 2'd1;
-localparam POPMULT = 2'd2;
-localparam CALCULATION_AND_OUTPUT = 2'd3;
+localparam DATA_IN = 3'd0;
+localparam POPSINGLE = 3'd1;
+localparam POPMULT = 3'd2;
+localparam CALCULATION_AND_OUTPUT = 3'd3;
+localparam OUTPUT = 3'd4;
 
 reg [2:0] CurrentState, NextState;
 reg [4:0] i;
@@ -31,8 +32,8 @@ initial begin
     stack_index = 4'd0;
 end
 
-wire [3:0] simo = stack_index - 4'd1;   // stack index - 1 (for calculation stage)
-wire [3:0] simt = stack_index - 4'd2;   // stack index - 2 (for calculation stage)
+// wire [3:0] simo = stack_index - 4'd1;   // stack index - 1 (for calculation stage)
+// wire [3:0] simt = stack_index - 4'd2;   // stack index - 2 (for calculation stage)
 
 /* State register (Sequential) */
 always @(posedge clk) begin
@@ -119,6 +120,7 @@ always @(posedge clk) begin
                 else begin
                     out_string_index <= 0; // reset out_string index and next do the calculation
                 end
+
             end
             POPMULT: begin
                 if(!(stack[stack_index - 4'b1] ^ 7'b010_1000 /* 40 */)) begin  // discard "("
@@ -137,24 +139,12 @@ always @(posedge clk) begin
                 end
             end
             CALCULATION_AND_OUTPUT: begin  // now out_string_index = 0, stack_index = 0, reuse the stack
-                if(out_string_index == data_num) begin
-                    result <= stack[0];
-                    valid <= 1;
-                    for(i = 0; i < 5'b1_0000; i = i + 5'b1) begin 
-                        data[i] <= 7'b000_0000; 
-                        out_string[i] <= 7'b000_0000;
-                        stack[i] <= 7'b000_0000;
-                    end
-                    stack_index <= 0;
-                    out_string_index <= 0;
-                    data_index <= 0;
-                    data_num <= 0;
-                end                                             /* 42 (0010_1010) ~ 45 (0010_1101) */
-                else if(/*out_string[out_string_index] >= 42*/ (!(out_string[out_string_index][5:3] ^ 3'b101) && (out_string[out_string_index][2:0] & 3'b110)) /*(out_string[out_string_index] <= 45)*/) begin  // detect operator, pop two number from the stack, calculate it and re-push back to stack
+                                   /* 42 (0010_1010) ~ 45 (0010_1101) */
+                if(/*out_string[out_string_index] >= 42*/ (!(out_string[out_string_index][5:3] ^ 3'b101) && (out_string[out_string_index][2:0] & 3'b110)) /*(out_string[out_string_index] <= 45)*/) begin  // detect operator, pop two number from the stack, calculate it and re-push back to stack
                     case(out_string[out_string_index])
-                        42: stack[simt] <= stack[simt] * stack[simo];
-                        43: stack[simt] <= stack[simt] + stack[simo];
-                        45: stack[simt] <= stack[simt] - stack[simo];
+                        42: stack[stack_index - 4'd2] <= stack[stack_index - 4'd2] * stack[stack_index - 4'd1];
+                        43: stack[stack_index - 4'd2] <= stack[stack_index - 4'd2] + stack[stack_index - 4'd1];
+                        45: stack[stack_index - 4'd2] <= stack[stack_index - 4'd2] - stack[stack_index - 4'd1];
                     endcase
                     out_string_index <= out_string_index + 4'b1;
                     stack_index <= stack_index - 4'b1;
@@ -164,6 +154,19 @@ always @(posedge clk) begin
                     stack_index <= stack_index + 4'b1;
                     out_string_index <= out_string_index + 4'b1;
                 end
+            end
+            OUTPUT: begin
+                result <= stack[0];
+                valid <= 1;
+                for(i = 0; i < 5'b1_0000; i = i + 5'b1) begin 
+                    data[i] <= 7'b000_0000; 
+                    out_string[i] <= 7'b000_0000;
+                    stack[i] <= 7'b000_0000;
+                end
+                stack_index <= 0;
+                out_string_index <= 0;
+                data_index <= 0;
+                data_num <= 0;
             end
             default: valid <= 0;
         endcase
@@ -189,8 +192,12 @@ always @(*) begin
             else NextState = POPMULT;
         end
         CALCULATION_AND_OUTPUT:begin
-            if(valid) NextState = DATA_IN;
+            if(out_string_index == data_num) NextState = OUTPUT;
             else NextState = CALCULATION_AND_OUTPUT;
+        end
+        OUTPUT: begin
+            if(valid) NextState = DATA_IN;
+            else NextState = OUTPUT;
         end
     endcase
 end
