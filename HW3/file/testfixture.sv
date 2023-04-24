@@ -1,5 +1,5 @@
 `timescale 1ns/10ps
-`define cycle 100              // Modify your cycle time here
+`define cycle 16              // Modify your cycle time here
 `define terminate_cycle 5000   // Modify your terminate cycle here
 
 
