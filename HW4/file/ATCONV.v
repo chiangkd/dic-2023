@@ -112,7 +112,7 @@ always @(posedge clk) begin
 	end
 end
 
-/* Control padding index */
+/* Control padding index (pad_i)*/
 always @(posedge clk) begin
 	case(CurrentState)
 		GETANDPAD:
@@ -135,6 +135,7 @@ always @(posedge clk) begin
 			end
 	endcase
 end
+/* Control original size index (ori_i) */
 always @(posedge clk) begin
 	case(CurrentState)
 		GETANDPAD:
@@ -154,6 +155,7 @@ always @(posedge clk) begin
 
 	endcase
 end
+/* Control padding index (pad_j) */
 always @(posedge clk) begin
 	case(CurrentState)
 		GETANDPAD:
@@ -175,6 +177,7 @@ always @(posedge clk) begin
 			end
 	endcase
 end
+/* Control original size index (ori_j) */
 always @(posedge clk) begin
 	case(CurrentState)
 		GETANDPAD:
