@@ -28,22 +28,14 @@ module  ATCONV(
 
 reg[3:0] CurrentState, NextState;
 
-// reg signed [12:0] imgData_tmp [0:8];	// stored t
-// reg signed [12:0] imgData_pad [0:4623];	// 68 * 68
 reg signed [15:0] da_CONV;	// data after convolution (need larger than 13 bits to store)
 reg signed [15:0] pool_tmp;	// tmp compare pooling value
 
 localparam CHECKRDY = 4'd0;
 localparam PADANDCONV = 4'd1;
 localparam RELUANDSTRL0	= 4'd2;
-localparam L1DONE = 4'd3;
-localparam CEILANDSTRL1 = 4'd4;
-// localparam STRL1 = 4'd4;
-// localparam CHECK = 4'd3;
-// localparam RELU = 4'd4;
-// localparam STRL0 = 4'd5;		// store information to layer 0 memory
-// localparam MAXPOOLING = 4'd6;
-// localparam STRL1 = 4'd7;	// store information to layer 1 memory
+localparam CEILANDSTRL1 = 4'd3;
+localparam DONE = 4'd4;
 
 
 reg [3:0] kernel_count;	// count each kernel multiplication time
@@ -119,7 +111,6 @@ always @(posedge clk) begin
 						da_CONV <= da_CONV + ~(idata >> 4) + 1;
 					end
 				endcase
-				// imgData_pad[pad_i + 68 * pad_j] <= idata;
 			end
 			RELUANDSTRL0: begin
 				da_CONV <= 0;	// reset
@@ -127,19 +118,10 @@ always @(posedge clk) begin
 			CEILANDSTRL1: begin
 				busy <= 0;
 			end
-
 		endcase
 	end
 end
 
-// always @(posedge clk) begin
-// 	case (CurrentState)
-// 		MAXPOOLINGANDSTRL1: begin
-			
-// 		end
-
-// 	endcase
-// end
 
 /* kernel count */
 always @(posedge clk) begin
@@ -188,12 +170,20 @@ always @(posedge clk) begin
 				data_index <= 0;	// reset
 			end
 		// CEILANDSTRL1:
-		// 	if(data_index_after_pool < 1024) begin
-		// 		data_index_after_pool <= data_index_after_pool + 1;
-		// 	end
-		// 	else begin
-		// 		data_index_after_pool <= 0;
-		// 	end
+			
+	endcase
+end
+
+always @(posedge clk) begin
+	case (CurrentState)
+		RELUANDSTRL0: begin
+			if(data_index_after_pool < 1024) begin
+				data_index_after_pool <= data_index_after_pool + 1;
+			end
+			else begin
+				data_index_after_pool <= 0;
+			end
+		end
 	endcase
 end
 
@@ -205,8 +195,6 @@ always @(*) begin
 		end
 	endcase
 end
-
-
 
 
 /* Control iaddr */
@@ -295,20 +283,33 @@ always @(*) begin
 			end
 		end
 		RELUANDSTRL0: begin
-			caddr_wr = data_index;
-			cdata_wr = (da_CONV + `BIAS) &13'b1_0000_0000_0000 ? 0 : da_CONV + `BIAS;
-			// if(pool_index == 3) begin
-			// 	csel = 1;
-			// 	cwr = 1;
-			// end
+			if(pool_index == 3) begin
+				csel = 1;
+				cwr = 1;
+			end
+			else begin
+				cwr = 0;
+			end
 		end
-		// CEILANDSTRL1: begin
-		// 	caddr_wr = data_index_after_pool;
-		// 	cdata_wr = pool_tmp;
-		// end
+		CEILANDSTRL1: begin
+
+		end
 	endcase
 end
 
+/* store data */
+always @(*) begin
+	case (CurrentState)
+		RELUANDSTRL0: begin
+			caddr_wr = data_index;
+			cdata_wr = (da_CONV + `BIAS) &13'b1_0000_0000_0000 ? 0 : da_CONV + `BIAS;
+		end
+		CEILANDSTRL1: begin
+			caddr_wr = data_index_after_pool;
+			cdata_wr = pool_tmp[3:0] ? {pool_tmp[11:4] + 1, 3'b0} : pool_tmp;	// ceiling
+		end
+	endcase
+end
 
 
 /* Next-state logic (Combinational) */
@@ -323,16 +324,13 @@ always @(*) begin
 			else NextState = PADANDCONV;
 		end
 		RELUANDSTRL0: begin
-			// if(pool_index == 3) NextState = L1DONE;
+			// if(pool_index == 3) NextState = CEILANDSTRL1;
 			if(data_index < 4095) NextState = PADANDCONV;
 			else NextState = CEILANDSTRL1;
 		end
-		L1DONE: begin
-
-		end
 		CEILANDSTRL1: begin
-			if(data_index < 4095) NextState = RELUANDSTRL0;
-			else NextState = CEILANDSTRL1;
+			if(data_index < 4095) NextState = PADANDCONV;
+			else NextState = DONE;
 		end
 	endcase
 end
