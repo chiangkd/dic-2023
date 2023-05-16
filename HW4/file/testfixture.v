@@ -1,6 +1,6 @@
 `timescale 1ns/10ps
 `define CYCLE      50          	  // you should not alter the cycle period (T.A. would test your ATCONV.v with cycle period == 50)
-`define End_CYCLE  1000000              // Modify cycle times once your design need more cycle times!
+`define End_CYCLE  10000000              // Modify cycle times once your design need more cycle times!
 `define IMG_DATA "./data/img.dat"
 `define LAYER0_GOLDEN "./data/layer0_golden.dat"
 `define LAYER1_GOLDEN "./data/layer1_golden.dat"
@@ -112,7 +112,7 @@ if (check0 == 1) begin
 		else begin
 			err0 = err0 + 1;
 			begin 
-				if(p0 < 128)
+				// if(p0 < 128)
 				begin
 					$display("WRONG! Layer 0 output , Pixel %d is wrong!", p0);
 					$display("               The output data is %h, but the expected data is %h ", Layer0_Mem[p0], layer0_golden[p0]);

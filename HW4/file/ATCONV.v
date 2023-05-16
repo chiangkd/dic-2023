@@ -28,8 +28,8 @@ module  ATCONV(
 
 reg[3:0] CurrentState, NextState;
 
-reg signed [15:0] da_CONV;	// data after convolution (need larger than 13 bits to store)
-reg signed [15:0] pool_tmp;	// tmp compare pooling value
+reg signed [12:0] da_CONV;	// data after convolution (need larger than 13 bits to store)
+reg signed [12:0] pool_tmp;	// tmp compare pooling value
 
 localparam CHECKRDY = 4'd0;
 localparam PADANDCONV = 4'd1;
@@ -116,12 +116,14 @@ always @(posedge clk) begin
 				da_CONV <= 0;	// reset
 			end
 			CEILANDSTRL1: begin
-				busy <= 0;
+				if(data_index_after_pool == 1023) begin
+					busy <= 0;
+				end
+				// busy <= 0;
 			end
 		endcase
 	end
 end
-
 
 /* kernel count */
 always @(posedge clk) begin
@@ -176,26 +178,31 @@ end
 
 always @(posedge clk) begin
 	case (CurrentState)
-		RELUANDSTRL0: begin
-			if(data_index_after_pool < 1024) begin
+		CEILANDSTRL1: begin
+			if(data_index_after_pool < 1024 && cwr) begin
 				data_index_after_pool <= data_index_after_pool + 1;
 			end
 			else begin
-				data_index_after_pool <= 0;
+				// data_index_after_pool <= 0;
 			end
 		end
 	endcase
 end
 
 /* pool temp */
-always @(*) begin
+always @(posedge clk) begin
 	case (CurrentState)
+		PADANDCONV: begin
+			// pool_tmp = 0;
+		end
 		RELUANDSTRL0: begin
-			pool_tmp = (pool_tmp < cdata_wr) ? cdata_wr : pool_tmp;	// after ReLU, also update the max value and store it to pool_tmp
+			// pool_tmp = (pool_tmp < cdata_wr) ? cdata_wr : pool_tmp;	// after ReLU, also update the max value and store it to pool_tmp
+		end
+		CEILANDSTRL1: begin
+			pool_tmp <= 0;
 		end
 	endcase
 end
-
 
 /* Control iaddr */
 always @(*) begin
@@ -265,15 +272,10 @@ always @(*) begin
 end
 
 
-
 /* csel */
-always @(*) begin
+always @(posedge clk) begin
 	case (CurrentState)
 		PADANDCONV: begin
-			// if(pool_index == 3) begin
-			// 	csel = 1;
-			// 	cwr = 1;
-			// end
 			if(kernel_count == 9) begin
 				csel = 0;
 				cwr = 1;
@@ -292,21 +294,31 @@ always @(*) begin
 			end
 		end
 		CEILANDSTRL1: begin
-
+			// cwr = 0;
 		end
 	endcase
 end
 
 /* store data */
-always @(*) begin
+always @(posedge clk) begin
 	case (CurrentState)
 		RELUANDSTRL0: begin
-			caddr_wr = data_index;
-			cdata_wr = (da_CONV + `BIAS) &13'b1_0000_0000_0000 ? 0 : da_CONV + `BIAS;
+			caddr_wr <= data_index;
+			if((da_CONV + `BIAS) & 13'b1_0000_0000_0000) begin
+				cdata_wr <= 0;
+			end
+			else begin
+				cdata_wr <= da_CONV + `BIAS;
+				if(pool_tmp < (da_CONV + `BIAS)) begin
+					pool_tmp <= (da_CONV + `BIAS);	 // also, update max value;
+				end
+			end
+			// cdata_wr <= (da_CONV + `BIAS) &13'b1_0000_0000_0000 ? 0 : da_CONV + `BIAS;
+			// pool_tmp = (pool_tmp < cdata_wr) ? cdata_wr : pool_tmp;	// after ReLU, also update the max value and store it to pool_tmp
 		end
 		CEILANDSTRL1: begin
-			caddr_wr = data_index_after_pool;
-			cdata_wr = pool_tmp[3:0] ? {pool_tmp[11:4] + 1, 3'b0} : pool_tmp;	// ceiling
+			caddr_wr <= data_index_after_pool;
+			cdata_wr <= pool_tmp[3:0] ? {pool_tmp[11:4] + 1, 4'b0} : pool_tmp;	// ceiling
 		end
 	endcase
 end
@@ -324,13 +336,13 @@ always @(*) begin
 			else NextState = PADANDCONV;
 		end
 		RELUANDSTRL0: begin
-			// if(pool_index == 3) NextState = CEILANDSTRL1;
-			if(data_index < 4095) NextState = PADANDCONV;
+			if(pool_index == 3) NextState = CEILANDSTRL1;
+			else if(data_index < 4095) NextState = PADANDCONV;
 			else NextState = CEILANDSTRL1;
 		end
 		CEILANDSTRL1: begin
-			if(data_index < 4095) NextState = PADANDCONV;
-			else NextState = DONE;
+			if(data_index < 4095 && cwr == 0) NextState = PADANDCONV;
+			else NextState = CEILANDSTRL1;
 		end
 	endcase
 end
