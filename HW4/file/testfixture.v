@@ -112,7 +112,7 @@ if (check0 == 1) begin
 		else begin
 			err0 = err0 + 1;
 			begin 
-				// if(p0 < 128)
+				if(p0 < 128)
 				begin
 					$display("WRONG! Layer 0 output , Pixel %d is wrong!", p0);
 					$display("               The output data is %h, but the expected data is %h ", Layer0_Mem[p0], layer0_golden[p0]);
