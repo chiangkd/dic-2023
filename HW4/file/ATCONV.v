@@ -26,7 +26,7 @@ module  ATCONV(
 //            write your design below
 //=================================================
 
-reg[3:0] CurrentState, NextState;
+reg[2:0] CurrentState, NextState;
 
 reg signed [12:0] da_CONV;	// data after convolution (need larger than 13 bits to store)
 reg signed [12:0] pool_tmp;	// tmp compare pooling value
@@ -42,7 +42,7 @@ reg [3:0] kernel_count;	// count each kernel multiplication time
 reg [11:0] data_index;	// count for each data for convolution
 reg [9:0] data_index_after_pool;	// 32*32 index
 reg [1:0] pool_index;	// max-pooling index
-reg pool_done_flag;	// 
+reg pool_done_flag;	// detect maxpooling done
 
 /* State register (Sequentual) */
 always @(posedge clk) begin
@@ -50,71 +50,61 @@ always @(posedge clk) begin
 	else CurrentState <= NextState;
 end
 
-always @(posedge clk) begin
-	if(reset) begin
-		busy <= 0;
-		kernel_count <= 0;
-		data_index <= 0;
-		data_index_after_pool <= 0;
-		csel <= 0;
-		crd <= 0;
-		cwr <= 0;
-		caddr_rd <= 0;
-		caddr_wr <= 0;
-		cdata_wr <= 0;
-		da_CONV <= 0;
-		pool_index <= 0;
-		pool_tmp <= 0;
-		pool_done_flag <= 0;
-	end
-	else begin
-		case(CurrentState)
-			PADANDCONV: begin
-				/*
-				bias: 13'h1FF4
-				kernel
-				13'h1FFF---13'h1FFE---13'h1FFF			|	1---2---3
-				    |		    |		  |				|	|	|	|
-				13'h1FFC---13'h0010---13'h1FFC			|	4---0---5
-					|		    |         |				|	|	|	|
-				13'h1FFF---13'h1FFE---13'h1FFF			|	6---7---8
-				*/
-				case (kernel_count)	// count for kernel
-					1: begin
-						da_CONV <= da_CONV + ~(idata >> 4) + 1;
-					end
-					2: begin
-						da_CONV <= da_CONV + ~(idata >> 3) + 1;
-					end
-					3: begin
-						da_CONV <= da_CONV + ~(idata >> 4) + 1;
-					end
-					4: begin
-						da_CONV <= da_CONV + ~(idata >> 2) + 1; 
-					end
-					0: begin
-						da_CONV <= da_CONV + idata;
-					end
-					5: begin
-						da_CONV <= da_CONV + ~(idata >> 2) + 1;
-					end
-					6: begin
-						da_CONV <= da_CONV + ~(idata >> 4) + 1;
-					end
-					7: begin
-						da_CONV <= da_CONV + ~(idata >> 3) + 1;
-					end
-					8: begin
-						da_CONV <= da_CONV + ~(idata >> 4) + 1;
-					end
-				endcase
-			end
-			RELUANDSTRL0: begin
-				da_CONV <= 0;	// reset
-			end
-		endcase
-	end
+initial begin
+	busy = 0;
+	data_index_after_pool = 0;
+	pool_done_flag <= 0;
+	da_CONV <= 0;
 end
+
+always @(posedge clk) begin
+	case(CurrentState)
+		PADANDCONV: begin
+			/*
+			bias: 13'h1FF4
+			kernel
+			13'h1FFF---13'h1FFE---13'h1FFF			|	1---2---3
+				|		    |		  |				|	|	|	|
+			13'h1FFC---13'h0010---13'h1FFC			|	4---0---5
+				|		    |         |				|	|	|	|
+			13'h1FFF---13'h1FFE---13'h1FFF			|	6---7---8
+			*/
+			case (kernel_count)	// count for kernel
+				1: begin
+					da_CONV <= da_CONV + ~(idata >> 4) + 1;
+				end
+				2: begin
+					da_CONV <= da_CONV + ~(idata >> 3) + 1;
+				end
+				3: begin
+					da_CONV <= da_CONV + ~(idata >> 4) + 1;
+				end
+				4: begin
+					da_CONV <= da_CONV + ~(idata >> 2) + 1; 
+				end
+				0: begin
+					da_CONV <= da_CONV + idata;
+				end
+				5: begin
+					da_CONV <= da_CONV + ~(idata >> 2) + 1;
+				end
+				6: begin
+					da_CONV <= da_CONV + ~(idata >> 4) + 1;
+				end
+				7: begin
+					da_CONV <= da_CONV + ~(idata >> 3) + 1;
+				end
+				8: begin
+					da_CONV <= da_CONV + ~(idata >> 4) + 1;
+				end
+			endcase
+		end
+		RELUANDSTRL0: begin
+			da_CONV <= 0;	// reset
+		end
+	endcase
+end
+
 
 /* busy control */
 always @(posedge clk) begin
@@ -148,6 +138,10 @@ end
 /* data count */
 always @(posedge clk) begin
 	case (CurrentState)
+		CHECKRDY: begin
+			data_index <= 0;
+			
+		end
 		RELUANDSTRL0:
 			if(data_index < 4096) begin
 				data_index <= data_index + 1;
@@ -197,6 +191,9 @@ end
 /* pool count */
 always @(posedge clk) begin
 	case (CurrentState)
+		CHECKRDY: begin
+			pool_index <= 0;
+		end
 		RDANDMAXPOOL: begin
 			pool_index <= pool_index + 1;
 		end
@@ -206,6 +203,11 @@ end
 /* pool temp */
 always @(posedge clk) begin
 	case (CurrentState)
+		RELUANDSTRL0: begin
+			if(data_index == 4095) begin
+				pool_tmp <= 0;
+			end
+		end
 		RDANDMAXPOOL: begin
 			if(cdata_rd) begin
 				pool_tmp <= (pool_tmp < cdata_rd) ? cdata_rd : pool_tmp;	// read value from layer 0 and updata the maximum value
@@ -216,7 +218,6 @@ always @(posedge clk) begin
 		end
 	endcase
 end
-
 
 /* Control iaddr */
 always @(*) begin
@@ -332,7 +333,6 @@ always @(posedge clk) begin
 		end 
 	endcase
 end
-
 /* Next-state logic (Combinational) */
 always @(*) begin
 	case(CurrentState)
