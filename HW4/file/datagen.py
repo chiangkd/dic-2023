@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import numpy as np
-import os
 import cv2
 
 imgPath = 'images/bleach.png'
