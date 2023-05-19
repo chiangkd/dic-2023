@@ -3,8 +3,13 @@ import torch.nn as nn
 import numpy as np
 import cv2
 
+imgPath = './image.jpg'
+
 imgPath = 'images/bleach.png'
 
+def readImg(path):
+    
+    return
 def int2bin(number):
     bin = "{:09b}".format(number) + "0000"  # last four bits is 0
     return bin
@@ -19,7 +24,6 @@ def float2bin(number):
     flocom = flo
     bin = "{:09b}".format(intTmp) + ''.join(flocom) # append list
     return bin
-
 
 def layer0out(img_data):
     # padding
@@ -50,9 +54,13 @@ def layer1out(img_data):
     return torch.ceil(layer1(img_data))
 
 if __name__ == '__main__':
+
+    #
     img_gray = cv2.imread(imgPath, cv2.IMREAD_GRAYSCALE) # read grayscale image
     img_gray_resize = cv2.resize(img_gray, (64, 64), interpolation=cv2.INTER_AREA)  # resize image
-    
+    #
+
+
     # img.dat
     img_dat_output = []
     for i in range(img_gray_resize.shape[0]):
@@ -65,7 +73,6 @@ if __name__ == '__main__':
     img_dat_layer0 = layer0out(torch.FloatTensor(img_gray_resize.reshape(1, 1, 64, 64)))
 
     layer0_golden_output = []
-
     for i in range(img_dat_layer0.shape[2]):    # shape = [1, 1, 64, 64]
         for j in range(img_dat_layer0.shape[3]):
             layer0_golden_output.append(str(float2bin(img_dat_layer0.detach().numpy()[0][0][i][j])) + " //data " + str(64 * i + j) + ": " + str(img_dat_layer0.detach().numpy()[0][0][i][j]))
@@ -75,15 +82,8 @@ if __name__ == '__main__':
     
     img_dat_layer1 = layer1out(torch.FloatTensor(img_dat_layer0.reshape(1, 1, 64, 64)))
 
-    # print(img_dat_layer0.shape)
     layer1_golden_output = []
     for i in range(img_dat_layer1.shape[2]):    # shape = [1, 1, 32, 32]
         for j in range(img_dat_layer1.shape[3]):
             layer1_golden_output.append(str(float2bin(img_dat_layer1.detach().numpy()[0][0][i][j])) + " //data " + str(32 * i + j) + ": " + str(img_dat_layer1.detach().numpy()[0][0][i][j]))
     np.savetxt('./layer1_golden.dat', layer1_golden_output, fmt='%s')
-
-
-    ### show image ###
-    # cv2.imshow('Image', img_gray_resize)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
