@@ -3,13 +3,28 @@ import torch.nn as nn
 import numpy as np
 import cv2
 
-imgPath = './image.jpg'
+imgPath = './image'
 
-imgPath = 'images/bleach.png'
+# imgPath = 'images/bleach.png'
 
-def readImg(path):
-    
-    return
+def readImg(imgPath):
+    try:
+        img_gray = cv2.imread(imgPath+'.jpg', cv2.IMREAD_GRAYSCALE) # read grayscale image
+        if img_gray is not None:
+            print("Successfully read image.jpg file")
+        else:
+            raise FileNotFoundError
+    except FileNotFoundError:
+        try:
+            img_gray = cv2.imread(imgPath+'.png', cv2.IMREAD_GRAYSCALE) # read grayscale image
+            if img_gray is not None:
+                print("Successfully read image.png file")
+            else:
+                raise FileNotFoundError
+        except FileNotFoundError:
+            print("There are not image.jpg or image.png exist")
+    img_gray_resize = cv2.resize(img_gray, (64, 64), interpolation=cv2.INTER_AREA)  # resize image
+    return img_gray_resize
 def int2bin(number):
     bin = "{:09b}".format(number) + "0000"  # last four bits is 0
     return bin
@@ -55,11 +70,7 @@ def layer1out(img_data):
 
 if __name__ == '__main__':
 
-    #
-    img_gray = cv2.imread(imgPath, cv2.IMREAD_GRAYSCALE) # read grayscale image
-    img_gray_resize = cv2.resize(img_gray, (64, 64), interpolation=cv2.INTER_AREA)  # resize image
-    #
-
+    img_gray_resize = readImg(imgPath=imgPath)
 
     # img.dat
     img_dat_output = []
