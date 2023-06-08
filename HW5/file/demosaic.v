@@ -62,7 +62,7 @@ always @(posedge clk) begin
                 g r g r g ... r
             */
                 if(write_idx < 16383) begin
-                    write_idx <= write_idx + 1;
+                    write_idx <= write_idx + 14'b1;
                 end
                 if(!(write_idx[6:0] ^ 7'b1111111)) begin // 127, 255, 383, ...
                     if(red_flag) begin
@@ -125,25 +125,25 @@ always @(posedge clk) begin
         end
         PAD_GREEN: begin // 4 neighbors
             if(pad_cnt < 4) begin
-                pad_cnt <= pad_cnt + 1;
+                pad_cnt <= pad_cnt + 3'b1;
             end
             else begin
                 pad_cnt <= 0;
             end
             case(pad_cnt)
                 0: begin
-                    addr_g <= data_idx - 128; // up
+                    addr_g <= data_idx - 14'd128; // up
                 end
                 1: begin
-                    addr_g <= data_idx - 1;   // left
+                    addr_g <= data_idx - 14'd1;   // left
                     sum_tmp <= sum_tmp + rdata_g;
                 end
                 2: begin
-                    addr_g <= data_idx + 1;   // right
+                    addr_g <= data_idx + 14'd1;   // right
                     sum_tmp <= sum_tmp + rdata_g;
                 end
                 3: begin
-                    addr_g <= data_idx + 128; // down
+                    addr_g <= data_idx + 14'd128; // down
                     sum_tmp <= sum_tmp + rdata_g;
                 end
             endcase
@@ -281,7 +281,7 @@ always @(posedge clk) begin
                     else begin
                         wr_r <= 0;
                     end
-                    if(data_idx == 16382) begin
+                    if(data_idx > 16256) begin
                         data_idx <= 129;
                         missing_case <= 0;
                         pad_cnt <= 0;
@@ -422,8 +422,15 @@ always @(*) begin
             else NextState = PAD_GREEN;
         end
         PAD_RED: begin
-            if(data_idx == 16382) NextState = PAD_BLUE;
+            if(missing_case == 1) begin
+                if(data_idx > 16256) NextState = PAD_BLUE;
+                else NextState = PAD_RED;
+            end
+            // if(data_idx == 16382) NextState = PAD_BLUE;
             else NextState = PAD_RED;
+        end
+        PAD_BLUE: begin
+            NextState = PAD_BLUE;
         end
     endcase
 end
